@@ -1,0 +1,463 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="career-page fade-in">
+
+    <!-- ── Flash Messages ─────────────────────────────────────────────── -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="flash-msg flash-{{ category }}" style="margin-bottom:16px; padding:12px 18px; border-radius:10px;
+        background:{% if category=='success' %}rgba(16,185,129,0.12){% else %}rgba(239,68,68,0.12){% endif %};
+        border:1px solid {% if category=='success' %}rgba(16,185,129,0.3){% else %}rgba(239,68,68,0.3){% endif %};
+        color:{% if category=='success' %}var(--success-color){% else %}#f87171{% endif %};
+        font-size:0.88rem; font-weight:600;">
+        {{ '✓' if category=='success' else '⚠' }} {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- ── Page Header ──────────────────────────────────────────────── -->
+    <div class="page-header" style="margin-bottom:22px;">
+        <h1>Career Profile</h1>
+        <p style="color:var(--text-muted); font-size:0.9rem; margin-top:4px;">
+            Manage your professional identity. Changes save to your profile and appear across the app.
+        </p>
+    </div>
+
+    <div class="career-layout">
+
+        <!-- ════ LEFT: Identity snapshot + Stats ═══════════════════════ -->
+        <div class="career-left">
+
+            <!-- Avatar + name card -->
+            <div class="career-identity-card glass">
+                <div class="career-avatar">
+                    {{ (profile.full_name if profile and profile.full_name else current_user.username)[0].upper() }}
+                </div>
+                <div class="career-identity-name">
+                    {{ (profile.full_name if profile and profile.full_name else current_user.username) }}
+                </div>
+                {% if profile and profile.profession_type %}
+                <div style="margin-top:8px;">
+                    <span class="profession-badge">
+                        {% if profile.profession_type == 'Student' %}
+                        {% elif profile.profession_type == 'Working Professional' %}
+                        {% elif profile.profession_type == 'Content Creator' %}
+                        {% else %}{% endif %}
+                        {{ profile.profession_type }}
+                    </span>
+                    {% if profile.field_of_interest %}
+                    <span class="field-badge" style="margin-left:5px;">{{ profile.field_of_interest }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="career-username">@{{ current_user.username }}</div>
+            </div>
+
+            <div style="text-align: center; margin-top: 16px;">
+                <button type="button" class="psetup-btn-secondary" onclick="toggleCareerEdit()"
+                    id="editProfileToggleBtn" style="font-size: 0.85rem; padding: 8px 16px;">Edit Profile</button>
+            </div>
+
+        </div>
+
+        <!-- ════ RIGHT: Editable profile form ══════════════════════════ -->
+        <div class="career-right">
+            <div id="careerProfileView" class="glass career-form-card"
+                style="display: flex; flex-direction: column; justify-content: center; align-items: {% if profile %}flex-start{% else %}center; text-align: center{% endif %}; padding: 40px {% if profile %}40px{% else %}20px{% endif %};">
+
+                {% if profile and profile.profession_type %}
+                <!-- We have a saved profile, let's show it! -->
+                <div style="width: 100%;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h2 style="margin:0; font-weight:700;">{{ profile.full_name or current_user.username }}'s
+                            Overview</h2>
+                        <span class="profession-badge" style="font-size: 0.9rem;">
+                            {% if profile.profession_type == 'Student' %}
+                            {% elif profile.profession_type == 'Working Professional' %}
+                            {% elif profile.profession_type == 'Content Creator' %}
+                            {% else %}{% endif %}
+                            {{ profile.profession_type }}
+                        </span>
+                    </div>
+
+                    {% if profile.bio %}
+                    <div style="margin-bottom: 24px; padding-left: 14px; border-left: 3px solid var(--primary-color);">
+                        <p
+                            style="color:var(--text-color); font-size:1rem; line-height:1.6; margin:0; font-style:italic;">
+                            "{{ profile.bio }}"</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="career-form-grid-2" style="margin-bottom: 0;">
+                        {% if profile and 'date_of_birth' in profile.keys() and profile['date_of_birth'] %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Date of Birth</div>
+                            <div style="font-size:1.05rem; font-weight:500;">
+                                {% set dob_parts = profile['date_of_birth'].split('-') %}
+                                {% if dob_parts|length == 3 %}
+                                {{ dob_parts[2] }}-{{ dob_parts[1] }}-{{ dob_parts[0] }}
+                                {% else %}
+                                {{ profile['date_of_birth'] }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if profile and 'location' in profile.keys() and profile['location'] %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Location</div>
+                            <div style="font-size:1.05rem; font-weight:500;">{{ profile['location'] }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if profile and 'website' in profile.keys() and profile['website'] %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Website / Portfolio</div>
+                            <div style="font-size:1.05rem; font-weight:500;"><a
+                                    href="{{ profile['website'] if profile['website'].startswith('http') else 'https://' + profile['website'] }}"
+                                    target="_blank" style="color:var(--primary-color); text-decoration:none;">{{
+                                    profile['website'] }}</a></div>
+                        </div>
+                        {% endif %}
+
+                        {% if profile.field_of_interest %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Field of Interest</div>
+                            <div style="font-size:1.05rem; font-weight:500;">{{ profile.field_of_interest }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if profile.profession_type == 'Student' %}
+                        {% if profile.institution %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Institution</div>
+                            <div style="font-size:1.05rem; font-weight:500;">{{ profile.institution }}</div>
+                        </div>
+                        {% endif %}
+                        {% if profile.degree or profile.branch %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Degree / Branch</div>
+                            <div style="font-size:1.05rem; font-weight:500;">{{ profile.degree }}{{ ' in ' if
+                                profile.degree and profile.branch else '' }}{{ profile.branch }}</div>
+                        </div>
+                        {% endif %}
+                        {% if profile.year_of_study %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Year of Study</div>
+                            <div style="font-size:1.05rem; font-weight:500;">{{ profile.year_of_study }}</div>
+                        </div>
+                        {% endif %}
+                        {% elif profile.profession_type == 'Working Professional' %}
+                        {% if profile.role %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Current Role</div>
+                            <div style="font-size:1.05rem; font-weight:500;">{{ profile.role }}</div>
+                        </div>
+                        {% endif %}
+                        {% if profile.industry %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Industry</div>
+                            <div style="font-size:1.05rem; font-weight:500;">{{ profile.industry }}</div>
+                        </div>
+                        {% endif %}
+                        {% if profile.experience_years %}
+                        <div style="margin-bottom: 16px;">
+                            <div
+                                style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+                                Experience</div>
+                            <div style="font-size:1.05rem; font-weight:500;">{{ profile.experience_years }}</div>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <!-- No profile yet -> empty placeholder -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="1.5"
+                    style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.8;">
+                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <h3 style="margin-bottom: 8px; font-weight: 600;">Your Professional Identity</h3>
+                <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 320px; line-height: 1.5;">
+                    This information is used to personalize your task suggestions and track your overall career growth.
+                    Click "Edit Profile" below your avatar to set up your details.
+                </p>
+                {% endif %}
+            </div>
+
+            <form action="{{ url_for('career_update') }}" method="POST" id="careerForm" style="display: none;">
+                <!-- ── Personal Info ────────────────────────────────── -->
+                <div class="glass career-form-card" style="margin-bottom: 24px;">
+                    <div class="section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            style="width:14px;height:14px;">
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M20 21a8 8 0 10-16 0" />
+                        </svg>
+                        Personal Info
+                    </div>
+                    <div class="career-form-grid-2">
+                        <div class="career-form-group">
+                            <label class="career-form-label">Full Name</label>
+                            <input type="text" name="full_name" class="career-form-input" placeholder="Your full name"
+                                value="{{ (profile.full_name or '') if profile else '' }}" maxlength="120">
+                        </div>
+                        <div class="career-form-group">
+                            <label class="career-form-label">Date of Birth</label>
+                            <input type="date" name="date_of_birth" class="career-form-input"
+                                value="{{ profile['date_of_birth'] if profile and 'date_of_birth' in profile.keys() else '' }}">
+                        </div>
+                        <div class="career-form-grid-2" style="margin-top:14px;">
+                            <div class="career-form-group">
+                                <label class="career-form-label">Location</label>
+                                <input type="text" name="location" class="career-form-input"
+                                    placeholder="e.g. London, UK"
+                                    value="{{ profile['location'] if profile and 'location' in profile.keys() else '' }}"
+                                    maxlength="120">
+                            </div>
+                            <div class="career-form-group">
+                                <label class="career-form-label">Website / Portfolio</label>
+                                <input type="url" name="website" class="career-form-input"
+                                    placeholder="e.g. github.com/username"
+                                    value="{{ profile['website'] if profile and 'website' in profile.keys() else '' }}"
+                                    maxlength="255">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Profession Details ───────────────────────────── -->
+                    <div class="glass career-form-card" style="margin-bottom: 24px;">
+                        <div class="section-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                style="width:14px;height:14px;">
+                                <rect x="2" y="7" width="20" height="14" rx="2" />
+                                <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
+                            </svg>
+                            Profession Details
+                        </div>
+
+                        <div class="career-form-grid-2" style="margin-bottom:0;">
+                            <div class="career-form-group">
+                                <label class="career-form-label">Profession Type <span
+                                        style="color:#f87171">*</span></label>
+                                <select name="profession_type" id="careerProfType"
+                                    class="career-form-input career-form-select" onchange="handleCareerProfChange()">
+                                    {% set p_type = profile['profession_type'] if profile and 'profession_type' in
+                                    profile.keys() else '' %}
+                                    {% set is_standard = p_type in ['', 'Student', 'Working Professional', 'Content
+                                    Creator'] %}
+                                    <option value="" {{ 'selected' if not p_type }}>— Select
+                                        —</option>
+                                    <option value="Student" {{ 'selected' if p_type=='Student' }}> Student</option>
+                                    <option value="Working Professional" {{ 'selected' if p_type=='Working Professional'
+                                        }}>
+                                         Working Professional</option>
+                                    <option value="Content Creator" {{ 'selected' if p_type=='Content Creator' }}>
+                                        Content
+                                        Creator</option>
+                                    <option value="Other" {{ 'selected' if p_type and not is_standard }}> Other
+                                    </option>
+                                </select>
+                                <input type="text" name="profession_type_other" id="careerProfTypeOther"
+                                    class="career-form-input" style="display:none; margin-top:8px;"
+                                    placeholder="Specify your profession"
+                                    value="{{ p_type if p_type and not is_standard else '' }}" maxlength="80">
+                            </div>
+                            <div class="career-form-group">
+                                <label class="career-form-label">Field of Interest</label>
+                                <input type="text" name="field_of_interest" class="career-form-input"
+                                    placeholder="e.g. Web Dev, AI/ML, Finance"
+                                    value="{{ (profile.field_of_interest or '') if profile else '' }}" maxlength="120">
+                            </div>
+                        </div>
+
+                        <!-- Student fields -->
+                        <div id="careerStudentFields" class="conditional-fields" style="margin-top:14px; display:none;">
+                            <div class="career-form-section-label"> Student Details</div>
+                            <div class="career-form-grid-2">
+                                <div class="career-form-group">
+                                    <label class="career-form-label">Degree</label>
+                                    <input type="text" name="degree" class="career-form-input"
+                                        placeholder="e.g. B.Tech, BCA" maxlength="80"
+                                        value="{{ (profile.degree or '') if profile else '' }}">
+                                </div>
+                                <div class="career-form-group">
+                                    <label class="career-form-label">Branch / Specialisation</label>
+                                    <input type="text" name="branch" class="career-form-input"
+                                        placeholder="e.g. Computer Science" maxlength="80"
+                                        value="{{ (profile.branch or '') if profile else '' }}">
+                                </div>
+                            </div>
+                            <div class="career-form-grid-2">
+                                <div class="career-form-group">
+                                    <label class="career-form-label">Year of Study</label>
+                                    <select name="year_of_study" class="career-form-input career-form-select">
+                                        <option value="">— Select year —</option>
+                                        {% for yr in ['1st Year','2nd Year','3rd Year','4th Year','Final
+                                        Year','Post-Graduate'] %}
+                                        <option value="{{ yr }}" {{ 'selected' if profile and profile.year_of_study==yr
+                                            }}>
+                                            {{ yr }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="career-form-group">
+                                    <label class="career-form-label">Institution</label>
+                                    <input type="text" name="institution" class="career-form-input"
+                                        placeholder="e.g. VIT, IIT, MIT" maxlength="120"
+                                        value="{{ (profile.institution or '') if profile else '' }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Working Professional fields -->
+                        <div id="careerProFields" class="conditional-fields" style="margin-top:14px; display:none;">
+                            <div class="career-form-section-label">Professional Details</div>
+                            <div class="career-form-grid-2">
+                                <div class="career-form-group">
+                                    <label class="career-form-label">Industry</label>
+                                    <input type="text" name="industry" class="career-form-input"
+                                        placeholder="e.g. Software, Finance" maxlength="80"
+                                        value="{{ (profile.industry or '') if profile else '' }}">
+                                </div>
+                                <div class="career-form-group">
+                                    <label class="career-form-label">Current Role</label>
+                                    <input type="text" name="role" class="career-form-input"
+                                        placeholder="e.g. Software Engineer" maxlength="80"
+                                        value="{{ (profile.role or '') if profile else '' }}">
+                                </div>
+                            </div>
+                            <div class="career-form-group">
+                                <label class="career-form-label">Years of Experience</label>
+                                <select name="experience_years" class="career-form-input career-form-select">
+                                    <option value="">— Select range —</option>
+                                    {% for exp in ['Less than 1 year','1-2 years','3-5 years','5-10 years','10+ years']
+                                    %}
+                                    <option value="{{ exp }}" {{ 'selected' if profile and profile.experience_years==exp
+                                        }}>
+                                        {{ exp }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Bio ─────────────────────────────────────────── -->
+                    <div class="glass career-form-card" style="margin-bottom: 24px;">
+                        <div class="section-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                style="width:14px;height:14px;">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                            </svg>
+                            Short Bio
+                            <span class="career-optional-tag">optional</span>
+                        </div>
+                        <textarea name="bio" class="career-bio-textarea" maxlength="500"
+                            placeholder="Write a few lines about yourself, your goals, or what drives you…"
+                            id="careerBioTA">{{ (profile.bio or '') if profile and profile['bio'] is defined else '' }}</textarea>
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:6px; text-align:right;">
+                            <span id="careerBioCount">0</span>/500
+                        </div>
+                    </div>
+
+                    <!-- ── Save Button ─────────────────────────────────── -->
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:4px;">
+                        <button type="submit" class="psetup-btn-primary" id="careerSaveBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                style="width:15px;height:15px;">
+                                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                                <polyline points="17 21 17 13 7 13 7 21" />
+                                <polyline points="7 3 7 8 15 8" />
+                            </svg>
+                            Save Profile
+                        </button>
+                        <a href="{{ url_for('overview') }}" class="psetup-btn-secondary">← Overview</a>
+                    </div>
+            </form>
+
+
+        </div>
+    </div>
+
+    <script>
+        function toggleCareerEdit() {
+            const view = document.getElementById('careerProfileView');
+            const form = document.getElementById('careerForm');
+            if (form.style.display === 'none') {
+                view.style.display = 'none';
+                form.style.display = 'block';
+                document.getElementById('editProfileToggleBtn').textContent = 'Cancel Edit';
+            } else {
+                view.style.display = 'flex';
+                form.style.display = 'none';
+                document.getElementById('editProfileToggleBtn').textContent = 'Edit Profile';
+            }
+        }
+
+        function handleCareerProfChange() {
+            const sel = document.getElementById('careerProfType');
+            const val = sel ? sel.value : '';
+            const s = document.getElementById('careerStudentFields');
+            const p = document.getElementById('careerProFields');
+            const otherInput = document.getElementById('careerProfTypeOther');
+
+            if (s) s.style.display = val === 'Student' ? 'block' : 'none';
+            if (p) p.style.display = val === 'Working Professional' ? 'block' : 'none';
+            if (otherInput) {
+                if (val === 'Other') {
+                    otherInput.style.display = 'block';
+                    otherInput.required = true;
+                } else {
+                    otherInput.style.display = 'none';
+                    otherInput.required = false;
+                }
+            }
+        }
+
+        // Restore conditional fields on load
+        document.addEventListener('DOMContentLoaded', () => {
+            handleCareerProfChange();
+
+            // Bio char count
+            const ta = document.getElementById('careerBioTA');
+            const counter = document.getElementById('careerBioCount');
+            if (ta && counter) {
+                counter.textContent = ta.value.length;
+                ta.addEventListener('input', () => { counter.textContent = ta.value.length; });
+            }
+
+            // Prevent double submit
+            const form = document.getElementById('careerForm');
+            const btn = document.getElementById('careerSaveBtn');
+            if (form && btn) {
+                form.addEventListener('submit', () => {
+                    btn.textContent = 'Saving…';
+                    btn.disabled = true;
+                });
+            }
+        });
+    </script>
+    {% endblock %}

@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-container fade-in">
+    <div class="page-header"
+        style="margin-bottom:24px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <h1>Finance Tracker</h1>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-top:6px;">Manage your daily expenses</p>
+        </div>
+        <div>
+            <input type="date" id="financeDate" value="{{ today }}" onchange="handleDateChange()"
+                style="background:rgba(255,255,255,0.05); padding:8px 16px; border-radius:8px; font-weight:600; border:1px solid rgba(255,255,255,0.1); color:var(--text-color); font-family:inherit; cursor:pointer;">
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 2fr; gap:24px;">
+
+        <!-- Add Expense Form -->
+        <div class="card" style="padding:24px;">
+            <h2 style="font-size:1.1rem; font-weight:700; margin-top:0; margin-bottom:20px;">Add New Expense</h2>
+            <form id="financeForm" onsubmit="addExpense(event)">
+                <div style="margin-bottom:16px;">
+                    <label style="display:block; margin-bottom:8px; font-size:0.85rem; color:var(--text-muted);">Amount
+                        (₹)</label>
+                    <input type="number" id="expenseAmount" step="0.01" required placeholder="0.00"
+                        style="width:100%; border-radius:8px; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-color);">
+                </div>
+
+                <div style="margin-bottom:16px;">
+                    <label
+                        style="display:block; margin-bottom:8px; font-size:0.85rem; color:var(--text-muted);">Category</label>
+                    <select id="expenseCategory" required class="psetup-input psetup-select"
+                        style="width:100%; border-radius:8px;">
+                        <option value="Food & Dining" style="background:#0B0F1A;">Food & Dining</option>
+                        <option value="Transport" style="background:#0B0F1A;">Transport</option>
+                        <option value="Bills & Utilities" style="background:#0B0F1A;">Bills & Utilities</option>
+                        <option value="Shopping" style="background:#0B0F1A;">Shopping</option>
+                        <option value="Other" style="background:#0B0F1A;">Other</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:16px;">
+                    <label style="display:block; margin-bottom:8px; font-size:0.85rem; color:var(--text-muted);">Notes
+                        (optional)</label>
+                    <input type="text" id="expenseNotes" placeholder="What was this for?"
+                        style="width:100%; border-radius:8px; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-color);">
+                </div>
+
+                <button type="submit" class="btn" style="width:100%; justify-content:center;">➕ Add Expense</button>
+            </form>
+        </div>
+
+        <!-- Right Column: Chart & Recent -->
+        <div style="display:flex; flex-direction:column; gap:24px;">
+            <div class="card" style="padding:24px;">
+                <h2 style="font-size:1.1rem; font-weight:700; margin-top:0; margin-bottom:20px;">Spending by Category
+                    (Last 30 Days)</h2>
+                <div style="height:300px; display:flex; justify-content:center; align-items:center;">
+                    <canvas id="financeChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card" style="padding:24px;">
+                <h2 id="recentTransactionsHeader"
+                    style="font-size:1.1rem; font-weight:700; margin-top:0; margin-bottom:20px;">Recent Transactions
+                    (Today)</h2>
+                <div id="recentTransactionsList">
+                    <p style="text-align:center; color:var(--text-muted); font-size:0.85rem;">Loading transactions...
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let financeChart = null;
+    let currentDate = '{{ today }}';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadFinanceData();
+    });
+
+    function handleDateChange() {
+        currentDate = document.getElementById('financeDate').value;
+        const isToday = currentDate === '{{ today }}';
+
+        let headerEl = document.getElementById('recentTransactionsHeader');
+        if (isToday) {
+            headerEl.textContent = 'Recent Transactions (Today)';
+        } else {
+            const dateObj = new Date(currentDate);
+            headerEl.textContent = `Transactions on ${dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        }
+
+        loadFinanceData();
+    }
+
+    async function loadFinanceData() {
+        try {
+            // Fetch for Chart (last 30 days)
+            const allRes = await fetch('/api/finance/data');
+            const allData = await allRes.json();
+            updateChart(allData);
+
+            // Fetch for Selected List
+            const todayRes = await fetch(`/api/finance/data?date=${currentDate}`);
+            const todayData = await todayRes.json();
+            renderRecentTransactions(todayData.entries);
+
+        } catch (e) {
+            console.error('Failed to load finance data', e);
+            document.getElementById('recentTransactionsList').innerHTML = '<p style="color:var(--error-color);">Error loading data.</p>';
+        }
+    }
+
+    function updateChart(data) {
+        const ctx = document.getElementById('financeChart').getContext('2d');
+
+        // Aggregate by category
+        const categoryTotals = {};
+        data.forEach(item => {
+            const cat = item.category.split(' ')[0]; // Take base name
+            categoryTotals[cat] = (categoryTotals[cat] || 0) + item.amount;
+        });
+
+        const labels = Object.keys(categoryTotals);
+        const values = Object.values(categoryTotals);
+
+        const colors = {
+            'Food': '#f59e0b',
+            'Transport': '#3b82f6',
+            'Bills': '#ef4444',
+            'Shopping': '#10b981',
+            'Other': '#8b5cf6'
+        };
+
+        const bgColors = labels.map(l => colors[l] || '#9ca3af');
+
+        if (financeChart) {
+            financeChart.destroy();
+        }
+
+        financeChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: bgColors,
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#e5e7eb', font: { family: "'Inter', sans-serif", size: 12 } }
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+    }
+
+    function renderRecentTransactions(entries) {
+        const container = document.getElementById('recentTransactionsList');
+        if (!entries || entries.length === 0) {
+            container.innerHTML = `<p style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:20px 0;">No transactions for ${currentDate === '{{ today }}' ? 'today' : 'this date'}.</p>`;
+            return;
+        }
+
+        let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
+        entries.forEach(item => {
+            html += `
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:10px;">
+                    <div style="display:flex; align-items:center; gap:14px;">
+                        <div>
+                            <div style="font-weight:600; font-size:0.95rem;">${item.category}</div>
+                            <div style="font-size:0.75rem; color:var(--text-muted);">${item.notes || '-'}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:16px;">
+                        <div style="font-weight:700; font-size:1.1rem; color:var(--text-color);">₹${item.amount.toFixed(2)}</div>
+                        <button onclick="deleteExpense(${item.id})" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:1.1rem; opacity:0.6; padding:4px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6" title="Delete">✕</button>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+
+        // Add total summary
+        const total = entries.reduce((s, e) => s + e.amount, 0);
+        const totalLabel = currentDate === '{{ today }}' ? 'Total Today:' : 'Total Spent:';
+        html += `<div style="text-align:right; margin-top:16px; font-weight:700; font-size:1.1rem; color:var(--text-muted);">${totalLabel} <span style="color:var(--error-color); font-size:1.4rem;">₹${total.toFixed(2)}</span></div>`;
+
+        container.innerHTML = html;
+    }
+
+    async function addExpense(e) {
+        e.preventDefault();
+        const amount = document.getElementById('expenseAmount').value;
+        const category = document.getElementById('expenseCategory').value;
+        const notes = document.getElementById('expenseNotes').value;
+
+        if (!amount) return;
+
+        const res = await fetch('/api/finance/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: currentDate,
+                amount: amount,
+                category: category,
+                notes: notes
+            })
+        });
+
+        if (res.ok) {
+            document.getElementById('financeForm').reset();
+            loadFinanceData();
+            if (typeof showToast === 'function') showToast('Expense added!', 'success');
+        } else {
+            if (typeof showToast === 'function') showToast('Failed to add expense', 'error');
+        }
+    }
+
+    async function deleteExpense(id) {
+        if (!confirm('Delete this transaction?')) return;
+
+        const res = await fetch('/api/finance/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        });
+
+        if (res.ok) {
+            loadFinanceData();
+        }
+    }
+</script>
+{% endblock %}

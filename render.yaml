@@ -1,0 +1,21 @@
+services:
+  # The web service running our Flask application
+  - type: web
+    name: performance-tracker-web
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: performance-tracker-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+
+databases:
+  # The PostgreSQL database that powers the application
+  - name: performance-tracker-db
+    databaseName: neri
+    user: neri_user
+    plan: free # Can be updated to paid plan later
